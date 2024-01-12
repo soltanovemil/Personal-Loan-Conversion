@@ -1,0 +1,637 @@
+---
+title: "Supervised"
+author: "Emil"
+date: "2023-11-08"
+output: html_document
+---
+
+# Importing the libraries
+```{r}
+install.packages("moments")
+install.packages("ggplot2")
+install.packages("corrplot")
+install.packages("reshape2")
+install.packages("caTools")
+install.packages("e1071")
+install.packages("caret")
+install.packages("class")
+```
+
+# Importing the dataset
+```{r}
+dataset = read.csv("Bank_Personal_Loan_Modelling.csv")
+head(dataset, 10)
+```
+
+# Check for Null Values
+```{r}
+any(is.na(dataset))
+```
+
+# Summary Statistics for Each Variable
+```{r}
+summary(dataset)
+t(summary(dataset))
+```
+
+# Finding the Mean
+```{r}
+dataset_mean <- apply(dataset, 2, mean)
+dataset_mean
+```
+
+# Finding the Median
+```{r}
+dataset_median <- apply(dataset, 2, median)
+dataset_median
+```
+
+# Finding the Std
+```{r}
+dataset_std <- apply(dataset, 2, sd)
+dataset_std
+```
+
+# Distribution of Variables
+```{r}
+# Assuming your data frame is named dataset
+
+# 1. Histogram for "Age"
+hist(dataset$Age, col = "skyblue", main = "Distribution of Age", xlab = "Age", ylab = "Frequency")
+
+# 2. Histogram for "Experience" after removing negative values
+hist(dataset$Experience, col = "lightgreen", main = "Distribution of Experience", xlab = "Experience", ylab = "Frequency")
+
+# 3. Histogram for "Income"
+hist(dataset$Income, col = "orange", main = "Distribution of Income", xlab = "Income", ylab = "Frequency")
+
+# 4. Histogram for "CCAvg"
+hist(dataset$CCAvg, col = "lightcoral", main = "Distribution of CCAvg", xlab = "CCAvg", ylab = "Frequency")
+
+# 5. Histogram for "Mortgage"
+hist(dataset$Mortgage, col = "lightblue", main = "Distribution of Mortgage", xlab = "Mortgage", ylab = "Frequency")
+
+# 6. Histogram for "Family"
+barplot(table(dataset$Family), col = "steelblue", main = "Distribution of Family Size", xlab = "Family Size", ylab = "Count")
+
+# 7. Histogram for "Education"
+barplot(table(dataset$Education), col = "lightgreen", main = "Distribution of Education", xlab = "Education Level", ylab = "Count")
+
+```
+
+# Checking the Negative Values in Experience
+```{r}
+# Create a new data frame without rows where "Experience" is less than or equal to 0
+datasetExp <- subset(dataset, Experience > 0)
+
+# Create a logical vector indicating negative "Experience" values
+negExp <- dataset$Experience < 0
+
+# Get a list of IDs for rows with negative "Experience" values
+dataset_list <- dataset$ID[negExp]
+
+# Count the occurrences of negative and non-negative "Experience" values
+table(negExp)
+```
+
+# Cleaning the Negative Values from Experience
+```{r}
+# Iterate through the list of IDs
+for (id in dataset_list) {
+  # Find the corresponding Age and Education values for the current ID
+  age <- dataset$Age[which(dataset$ID == id)]
+  education <- dataset$Education[which(dataset$ID == id)]
+
+  # Filter the datasetExp based on Age and Education
+  df_filtered <- subset(datasetExp, Age == age & Education == education)
+
+  # Calculate the median of "Experience" for the filtered subset
+  exp <- median(df_filtered$Experience, na.rm = TRUE)
+
+  # Update the original dataset with the calculated median for the specific ID
+  dataset$Experience[which(dataset$ID == id)] <- exp
+}
+# Count the number of rows where "Experience" is less than 0
+neg_exp_count <- sum(dataset$Experience < 0)
+print(paste("Number of negative values in Experience:", neg_exp_count))
+```
+
+# Summary Dataset
+```{r}
+print((summary(dataset)))
+```
+
+# Measure of Skewness
+```{r}
+library(moments)
+
+# Calculate skewness for each column in the data frame
+skew_values <- apply(dataset, 2, skewness, na.rm = TRUE)
+
+# Print the skewness values
+print(skew_values)
+
+```
+
+# Boxplots for Age, Experience and Income
+```{r}
+library("ggplot2")
+ggplot(dataset, aes(x = "Age", y = Age)) +
+  geom_boxplot(fill = "skyblue", color = "steelblue") +
+  labs(title = "Boxplot of Age")
+
+ggplot(dataset, aes(x = "Experience", y = Experience)) +
+  geom_boxplot(fill = "lightgreen", color = "darkgreen") +
+  labs(title = "Boxplot of Experience")
+
+ggplot(dataset, aes(x = "Income", y = Income)) +
+  geom_boxplot(fill = "orange", color = "darkorange") +
+  labs(title = "Boxplot of Income")
+```
+
+# Boxplot of Income by Education and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a boxplot for 'Income' grouped by 'Education' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(Education), y = Income, fill = factor(Personal.Loan))) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  labs(title = "Boxplot of Income by Education and Personal_Loan", x = "Education", y = "Income") +
+  scale_y_continuous(breaks = seq(0, 200, 50)) +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+
+```
+
+##### Customers with an education level of 1 exhibit higher income compared to others. Those who have taken a Personal Loan share similar income levels among the customer base. Customers with education levels 2 and 3 have identical income levels when not opting for a Personal Loan.
+
+# Boxplot of Mortgage by Education and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a boxplot for 'Mortgage' grouped by 'Education' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(Education), y = Mortgage, fill = factor(Personal.Loan))) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  labs(title = "Boxplot of Mortgage by Education and Personal Loan", x = "Education", y = "Mortgage") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### Numerous outliers are observed in each scenario. However, customers both with and without a Personal Loan exhibit high Mortgage levels.
+
+# Boxplot of Income by Family and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a boxplot for 'Income' grouped by 'Family' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(Family), y = Income, fill = factor(Personal.Loan))) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  labs(title = "Boxplot of Income by Family and Personal Loan", x = "Family", y = "Income") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### Families earning less than 100K are less inclined to take loans compared to those with higher incomes.
+
+# Countplot of Family and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a count plot for 'Family' and colored by 'Personal_Loan' using ggplot2
+ggplot(dataset, aes(x = factor(Family), fill = factor(Personal.Loan))) +
+  geom_bar(position = position_dodge(width = 0.8), stat = "count") +
+  labs(title = "Count Plot of Family and Personal Loan", x = "Family", y = "Count") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### The Family attribute doesn't seem to have a significant impact on Personal Loans. However, families with a size of 3 are observed to take more Personal Loans compared to other family sizes.
+
+# Count Plot of Securities Account and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a count plot for 'SecuritiesAccount' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(Securities.Account), fill = factor(Personal.Loan))) +
+  geom_bar(position = position_dodge(width = 0.8), stat = "count") +
+  labs(title = "Count Plot of Securities Account and Personal Loan", x = "SecuritiesAccount", y = "Count") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### The majority of customers without a Personal Loan possess a Securities Account.
+
+# Count Plot of CDAccount and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a count plot for 'CDAccount' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(CD.Account), fill = factor(Personal.Loan))) +
+  geom_bar(position = position_dodge(width = 0.8), stat = "count") +
+  labs(title = "Count Plot of CDAccount and Personal Loan", x = "CDAccount", y = "Count") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### Customers without a CDAccount tend not to have a Personal Loan, while those with a CDAccount are more likely to have a Personal Loan.
+
+# Count Plot of Online and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a count plot for 'Online' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(Online), fill = factor(Personal.Loan))) +
+  geom_bar(position = position_dodge(width = 0.8), stat = "count") +
+  labs(title = "Count Plot of Online and Personal Loan", x = "Online", y = "Count") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### The count of customers with a Personal Loan is lower in both scenarios.
+
+# Count Plot of CreditCard and Personal Loan
+```{r}
+library(ggplot2)
+
+# Create a count plot for 'CreditCard' and colored by 'Personal_Loan'
+ggplot(dataset, aes(x = factor(CreditCard), fill = factor(Personal.Loan))) +
+  geom_bar(position = position_dodge(width = 0.8), stat = "count") +
+  labs(title = "Count Plot of CreditCard and Personal Loan", x = "CreditCard", y = "Count") +
+  scale_fill_manual(values = c("orange", "blue")) +
+  theme_minimal()
+```
+
+##### Customers with Personal Loan have less count in both the conditions.
+
+# Scatterplot
+```{r}
+library(ggplot2)
+
+# Create a scatter plot for 'Experience' and 'Age' with colors representing 'Education' using ggplot2
+ggplot(dataset, aes(x = Experience, y = Age, color = factor(Education))) +
+  geom_point(size = 3) +
+  labs(title = "Distribution of Education by Age and Experience", x = "Experience", y = "Age") +
+  theme_minimal()
+```
+
+##### There is a positive correlation between Experience and Age, indicating that as Experience increases, Age also tends to increase. Additionally, the color-coded education levels reveal a higher concentration of individuals at the undergraduate level.
+
+# DistPlot 
+```{r}
+library(ggplot2)
+
+# Create a distribution plot for 'CCAvg' when 'Personal_Loan' is 0 using ggplot2
+ggplot(subset(dataset, Personal.Loan == 0), aes(x = CCAvg)) +
+  geom_density(fill = "skyblue", alpha = 0.7) +
+  labs(title = "Distribution of CCAvg (Personal Loan = 0)", x = "CCAvg") +
+  theme_minimal()
+```
+
+# DistPlot
+```{r}
+library(ggplot2)
+
+# Create a distribution plot for 'CCAvg' when 'Personal_Loan' is 1 using ggplot2
+ggplot(subset(dataset, Personal.Loan == 1), aes(x = CCAvg)) +
+  geom_density(fill = "lightgreen", alpha = 0.7) +
+  labs(title = "Distribution of CCAvg (Personal Loan = 1)", x = "CCAvg") +
+  theme_minimal()
+```
+
+##### It's evident that customers with higher CCAvg tend to have a Personal Loan.
+
+# Credit Card Spending of Non-loan Customers
+```{r}
+# Calculate the median credit card spending for non-loan customers
+median_ccavg_non_loan <- median(dataset$CCAvg[dataset$Personal.Loan == 0], na.rm = TRUE) * 1000
+
+# Print the result
+print(median_ccavg_non_loan)
+```
+
+# Credit Card Spending of Loan Customers
+```{r}
+# Calculate the median credit card spending for loan customers
+median_ccavg_loan <- median(dataset$CCAvg[dataset$Personal.Loan == 1], na.rm = TRUE) * 1000
+
+# Print the result
+print(median_ccavg_loan)
+```
+
+##### Customers with an average credit card spending around the median of $3,800 exhibit a higher probability of taking a Personal Loan. Conversely, those with lower credit card spending around the median of $1,400 are less likely to opt for a loan.
+
+# Correlation Matrix
+```{r}
+# Calculate the correlation matrix
+cor_matrix <- cor(dataset)
+
+# Print the correlation matrix
+print(cor_matrix)
+```
+
+# Heatmap
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Calculate the correlation matrix
+cor_matrix <- cor(dataset)
+
+# Melt the correlation matrix for ggplot
+melted_cor <- melt(cor_matrix)
+
+# Create a heatmap using ggplot2
+ggplot(melted_cor, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "black") +
+  scale_fill_gradient2(low = "blue", mid = "orange", high = "red", midpoint = 0, limit = c(-1, 1), space = "Lab") +
+  theme_minimal() +
+  labs(title = "Correlation Matrix Heatmap")
+```
+
+
+# Conclusion from the EDA
+##### The dataset reveals that the "Age" feature is nearly normally distributed, with the majority of customers falling between 30 to 60 years, and the median being equal to the mean. Similarly, the "Experience" feature also follows a normal distribution, but negative values, which are unrealistic, should be removed. The "Income," "CCAvg," and "Mortgage" distributions are positively skewed. For "Income," the mean is greater than the median, indicating that most customers earn between 45-55K. "CCAvg" highlights that the majority spend less than 2.5K, and "Mortgage" shows that around 70% have a house mortgage less than 40K. "Family" and "Education" distributions are even. "Income" and "CCAvg" are moderately correlated, while "Experience" and "Age" show a positive correlation. Families with income below 100K are less likely to take a loan. Additionally, customers with an education level of 1 tend to have higher income. Those with and without Personal Loans tend to have high mortgages. Family size 3 shows a higher tendency for Personal loans. Majority without Personal loans have Securities Accounts, and those without a CD Account are less likely to have Personal loans. The count of customers with Personal Loans is lower in both conditions.
+
+
+# Logistic Regression
+```{r}
+# Drop columns 'ID', 'ZIPCode', 'Experience'
+data <- subset(dataset, select = -c(ID, ZIP.Code, Experience))
+
+# Display the first 10 rows
+head(data, 10)
+```
+
+```{r}
+# Display information about the structure of the data frame
+str(data)
+```
+
+```{r}
+# Select specific columns
+data1 <- data[, c('Age', 'Income', 'Family', 'CCAvg', 'Education', 'Mortgage', 'Securities.Account', 'CD.Account', 'Online', 'CreditCard', 'Personal.Loan')]
+
+# Display the first few rows of the new data frame
+head(data1)
+```
+
+```{r}
+# Display the dimensions of the data frame
+dim(data1)
+```
+
+```{r}
+# Calculate normalized value counts for the "Personal_Loan" column
+table(data1$Personal_Loan) / length(data1$Personal_Loan)
+```
+
+```{r}
+# Set the seed for reproducibility
+set.seed(15)
+
+# Create indices for the training set
+train_indices <- sample(1:nrow(data1), size = round(0.7 * nrow(data1)))
+
+# Create the training set
+X_train <- data1[train_indices, 1:9]
+y_train <- data1[train_indices, 10]
+
+# Create the test set (using set difference)
+X_test <- data1[-train_indices, 1:9]
+y_test <- data1[-train_indices, 10]
+
+# Check the type of X_train
+cat("Type of X_train:", class(X_train), "\n")
+```
+
+```{r}
+# Rename the 'Personal.Loan' column to make it compatible with the formula
+names(data1)[names(data1) == "Personal.Loan"] <- "Personal_Loan"
+
+# Assuming 'train_indices' is defined somewhere in your code
+
+# Fit logistic regression model
+logistic_model <- glm(Personal_Loan ~ ., data = data1, family = "binomial", subset = train_indices)
+
+# Make predictions on the test set
+y_pred_probs <- predict(logistic_model, newdata = data1[-train_indices, ], type = "response")
+
+# Convert probabilities to binary predictions (0 or 1)
+y_pred <- ifelse(y_pred_probs > 0.5, 1, 0)
+
+# Evaluate accuracy
+accuracy <- sum(y_pred == data1$Personal_Loan[-train_indices]) / length(data1$Personal_Loan[-train_indices])
+cat("Accuracy:", accuracy, "\n")
+
+# Assign the model score to A
+A <- accuracy
+
+# Display confusion matrix
+conf_matrix <- table(Actual = data1$Personal_Loan[-train_indices], Predicted = y_pred)
+cat("Confusion Matrix:\n")
+print(conf_matrix)
+
+```
+
+# Naive Bayes
+```{r}
+library(e1071)
+
+# Split the data into features (X) and target variable (Y)
+X <- data1[, 1:9]
+Y <- data1$Personal_Loan
+
+# Split the data into training and test sets
+set.seed(7)  # Setting the seed for reproducibility
+train_indices <- sample(1:nrow(data1), size = round(0.7 * nrow(data1)))
+
+X_train <- X[train_indices, ]
+y_train <- Y[train_indices]
+
+X_test <- X[-train_indices, ]
+y_test <- Y[-train_indices]
+
+# Fit the Naive Bayes model
+naive_bayes_model <- naiveBayes(X_train, y_train)
+
+# Make predictions on the test set
+y_pred <- predict(naive_bayes_model, X_test)
+
+# Evaluate accuracy and store it in variable B
+B <- sum(y_pred == y_test) / length(y_test)
+
+cat("Accuracy:", B, "\n")
+```
+
+```{r}
+library(caret)
+
+# Convert the reference vector to a factor with explicit levels
+y_test <- factor(y_test, levels = levels(factor(y_train)))
+
+# Fit the Naive Bayes model
+naive_bayes_model <- naiveBayes(X_train, y_train)
+
+# Make predictions on the test set
+y_pred <- predict(naive_bayes_model, X_test)
+
+# Convert the predicted vector to a factor with explicit levels
+y_pred <- factor(y_pred, levels = levels(factor(y_train)))
+
+# Compute recall
+recall <- confusionMatrix(y_pred, y_test)$byClass['Recall']
+cat("Recall:", recall, "\n")
+
+# Display confusion matrix
+conf_matrix <- confusionMatrix(y_pred, y_test)
+print("Confusion Matrix:")
+print(conf_matrix$table)
+```
+
+# KNN
+```{r}
+# Load required libraries
+library(caret)
+
+# Standardize the data
+scaled_data <- scale(data1)
+X_std <- as.data.frame(scaled_data)
+names(X_std) <- names(data1)
+
+# Split the dataset into training and test datasets
+set.seed(5)
+# Assuming data1 is a data frame with columns similar to Python code
+# If not, replace 1:10 with the column indices of the features in your dataset
+X <- data1[, 2:11]
+y <- data1$Personal_Loan
+
+# Split into train and test
+set.seed(5)
+split_indices <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train <- X[split_indices, ]
+X_test <- X[-split_indices, ]
+y_train <- y[split_indices]
+y_test <- y[-split_indices]
+
+# Print the shapes of train data
+print(dim(X_train))
+print(length(y_train))
+```
+
+```{r}
+# Load required libraries
+library(class)
+
+# Instantiate learning model (k = 1)
+knn <- knn(train = X_train, test = X_test, cl = y_train, k = 1)
+
+# Predict the response
+y_pred <- knn
+
+# Evaluate accuracy
+print(mean(y_pred == y_test))
+
+# Instantiate learning model (k = 5)
+knn <- knn(train = X_train, test = X_test, cl = y_train, k = 5)
+
+# Predict the response
+y_pred <- knn
+
+# Evaluate accuracy
+print(mean(y_pred == y_test))
+
+# Instantiate learning model (k = 3)
+knn <- knn(train = X_train, test = X_test, cl = y_train, k = 3)
+
+# Predict the response
+y_pred <- knn
+
+# Evaluate accuracy
+print(mean(y_pred == y_test))
+
+# Instantiate learning model (k = 7)
+knn <- knn(train = X_train, test = X_test, cl = y_train, k = 7)
+
+# Predict the response
+y_pred <- knn
+
+# Evaluate accuracy
+print(mean(y_pred == y_test))
+
+```
+
+```{r}
+# Create a sequence of numbers from 1 to 19
+myList <- 1:19
+
+# Subsetting just the odd ones
+neighbors <- myList[myList %% 2 != 0]
+ac_scores <- c()
+
+# Perform accuracy metrics for values from 1, 3, 5, ..., 19
+for (k in neighbors) {
+  knn <- knn(train = X_train, test = X_test, cl = y_train, k = k)
+  # Predict the response
+  y_pred <- knn
+  # Evaluate accuracy
+  scores <- mean(y_pred == y_test)
+  ac_scores <- c(ac_scores, scores)
+}
+
+# Changing to misclassification error
+MSE <- 1 - ac_scores
+
+# Determining the best k
+optimal_k <- neighbors[which.min(MSE)]
+print(paste("The optimal number of neighbors is", optimal_k))
+
+```
+
+```{r}
+# Plot misclassification error vs k
+plot(neighbors, MSE, type = "b", pch = 19, col = "blue", xlab = "Number of Neighbors K", ylab = "Misclassification Error")
+```
+
+```{r}
+# Use k=1 as the final model for prediction
+final_knn <- knn(train = X_train, test = X_test, cl = y_train, k = 1)
+
+# Predict the response
+y_pred_final <- final_knn
+
+# Evaluate accuracy
+accuracy <- mean(y_pred_final == y_test)
+recall <- sum((y_test == 1) & (y_pred_final == 1)) / sum(y_test == 1)
+
+# Assign accuracy to a variable
+C <- accuracy
+
+# Print accuracy and recall
+cat("Accuracy Score:", accuracy, "\n")
+cat("Recall Score:", recall, "\n")
+
+```
+
+```{r}
+# Convert y_test and y_pred_final to factors with the same levels
+y_test_factor <- as.factor(y_test)
+y_pred_final_factor <- as.factor(y_pred_final)
+
+# Create a confusion matrix
+conf_matrix <- confusionMatrix(data = y_pred_final_factor, reference = y_test_factor)
+
+# Print the confusion matrix
+print("Confusion Matrix:")
+print(conf_matrix)
+
+```
+
+# Comparison of the Different Models
+```{r}
+cat("Accuracy of Logistic Regression Model:", A, "\n")
+cat("Accuracy of Naive Bayes' Model:", B, "\n")
+cat("Accuracy of KNN Model:", C, "\n")
+```
+
+# Conclusion
+##### The objective of the classification task is to predict the probability of a liability customer purchasing personal loans. In preparation for a new marketing campaign, the bank seeks insights into the correlation between the variables in the dataset. To achieve this, three classification models were employed. Based on the accuracy scores, the "Logistic Regression" algorithm stands out with the highest accuracy and stability. However, it's worth noting that "KNN" is also a viable option, given that all the kernels exhibit good accuracy levels.

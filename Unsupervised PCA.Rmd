@@ -1,0 +1,75 @@
+---
+title: "Unsupervised PCA"
+author: "Emil"
+date: "2023-11-09"
+output: html_document
+---
+
+
+# Importing the Libraries
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(corrr)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+```
+
+# Importing the Dataset
+```{r}
+dataset <- read.csv("Bank_Personal_Loan_Modelling.csv")
+```
+
+# Checking for Null Values
+```{r}
+colSums(is.na(dataset))
+```
+
+# Data Normalization
+```{r}
+numerical_vars <- dataset[, c("Age", "Income", "Family", "CCAvg", "Education", "Mortgage")]
+data_normalized <- scale(numerical_vars)
+head(data_normalized)
+```
+
+##### Standardization, also known as z-score normalization, transforms the variables by subtracting the mean and dividing by the standard deviation. This process makes the variables comparable and brings them to a similar scale. It is a common preprocessing step in data analysis and modeling, as it helps to eliminate scale differences among variables, making them more comparable and avoiding bias towards variables with larger magnitudes.
+
+# Correlation Matrix
+```{r}
+corr_matrix <- cor(data_normalized)
+ggcorrplot(corr_matrix)
+```
+
+##### The result of the correlation matrix can be interpreted as follow: The higher the value, the most positively correlated the two variables are. The closer the value to -1, the most negatively correlated they are.
+
+# Principal Component Analysis (PCA)
+```{r}
+pca_data <- princomp(corr_matrix)
+summary(pca_data)
+```
+
+##### The standard deviation represents the spread of the data along each principal component. In this case, Comp.1 has the highest spread (0.7093049), followed by Comp.2, Comp.3, and Comp.4. Comp.5 and Comp.6 have smaller standard deviations, with Comp.6 having no variability (standard deviation of 0).
+##### The proportion of variance explains the relative contribution of each principal component to the total variance in the data. Comp.1 contributes the most (51.3%), followed by Comp.2 and Comp.3. Comp.5 and Comp.6 contribute very little to the total variance.
+##### The cumulative proportion shows the cumulative contribution of each principal component. In this case, Comp.1 alone explains 51.3% of the variance, and as we add more components, we reach a cumulative proportion of 100% after Comp.5.
+
+# Loadings Interpretation
+```{r}
+loadings_matrix <- pca_data$loadings[, 1:3]
+loadings_matrix
+```
+
+# Scree Plot
+```{r}
+fviz_eig(pca_data, addlabels = TRUE)
+```
+
+##### The plot demonstrates the eigenvalues in a downward shape, from highest to lowest. The first component can be considered as significant since it contains almost 51.3% of the total information of the data.
+
+# Biplot
+```{r}
+fviz_pca_var(pca_data, col.var = "black")
+```
+
+##### All the variables that are grouped together are positively correlated to each other, and that is the case for instance for Income and CCAvg have a positive correlation to each. We can explain this by looking at the loadings matrix where we could see that Income and CCAvg have the highest values with respect to first principal component.
